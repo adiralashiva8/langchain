@@ -370,11 +370,47 @@ class BaseChatModel(BaseLanguageModel[BaseMessage], ABC):
             return model_input
         if isinstance(model_input, str):
             return StringPromptValue(text=model_input)
+        if isinstance(model_input, dict):
+            # Handle base64 image input
+            if model_input.get("type") == "base64_image":
+                base64_data = model_input["data"]
+                mime_type = model_input.get("mime_type", "image/jpeg")
+                text = model_input.get("text", "")
+                
+                # Format as data URL if not already
+                if not base64_data.startswith("data:"):
+                    base64_data = f"data:{mime_type};base64,{base64_data}"
+                
+                content = []
+                if text:
+                    content.append({"type": "text", "text": text})
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": base64_data}
+                })
+                
+                message = HumanMessage(content=content)
+                return ChatPromptValue(messages=[message])
+            # Handle image URL input
+            elif model_input.get("type") == "image_url":
+                text = model_input.get("text", "")
+                image_url = model_input["image_url"]
+                
+                content = []
+                if text:
+                    content.append({"type": "text", "text": text})
+                content.append({
+                    "type": "image_url",
+                    "image_url": {"url": image_url}
+                })
+                
+                message = HumanMessage(content=content)
+                return ChatPromptValue(messages=[message])
         if isinstance(model_input, Sequence):
             return ChatPromptValue(messages=convert_to_messages(model_input))
         msg = (
             f"Invalid input type {type(model_input)}. "
-            "Must be a PromptValue, str, or list of BaseMessages."
+            "Must be a PromptValue, str, dict with image data, or list of BaseMessages."
         )
         raise ValueError(msg)
 
